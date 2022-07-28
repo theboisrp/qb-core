@@ -5,6 +5,16 @@ QBCore.Player = {}
 -- Don't touch any of this unless you know what you are doing
 -- Will cause major issues!
 
+local function isbanklocked(cid, cb) --modified
+    exports.oxmysql:single('SELECT * FROM players where citizenid = ?', { cid }, function(result)
+        if result then
+            cb(result.banklocked)
+        else
+            cb("false")
+        end
+    end)
+end --modified
+
 function QBCore.Player.Login(source, citizenid, newData)
     if source and source ~= '' then
         if citizenid then
@@ -22,6 +32,14 @@ function QBCore.Player.Login(source, citizenid, newData)
                     PlayerData.gang = {}
                 end
                 QBCore.Player.CheckPlayerData(source, PlayerData)
+                isbanklocked(citizenid, function (result)--modified
+                    if result == "true" then
+                        PlayerData.BankLocked = true
+                        if PlayerData.charinfo.card then
+                            PlayerData.charinfo.card.cardLocked = true
+                        end 
+                    end
+                end)--modified
             else
                 DropPlayer(source, 'You Have Been Kicked For Exploitation')
                 TriggerEvent('qb-log:server:CreateLog', 'anticheat', 'Anti-Cheat', 'white', GetPlayerName(source) .. ' Has Been Dropped For Character Joining Exploit', false)
@@ -84,6 +102,14 @@ function QBCore.Player.CheckPlayerData(source, PlayerData)
     PlayerData.charinfo.nationality = PlayerData.charinfo.nationality or 'USA'
     PlayerData.charinfo.phone = PlayerData.charinfo.phone or QBCore.Functions.CreatePhoneNumber()
     PlayerData.charinfo.account = PlayerData.charinfo.account or QBCore.Functions.CreateAccountNumber()
+    isbanklocked(PlayerData.citizenid, function (result) --modified
+        if result == "true" then
+            PlayerData.BankLocked = true
+            if PlayerData.charinfo.card then
+                PlayerData.charinfo.card.cardLocked = true
+            end 
+        end
+    end)--modified
     -- Metadata
     PlayerData.metadata = PlayerData.metadata or {}
     PlayerData.metadata['hunger'] = PlayerData.metadata['hunger'] or 100
@@ -282,13 +308,19 @@ function QBCore.Player.CreatePlayer(PlayerData, Offline)
         self.PlayerData.money[moneytype] = self.PlayerData.money[moneytype] + amount
 
         if not self.Offline then
-            self.Functions.UpdatePlayerData()
-            if amount > 100000 then
-                TriggerEvent('qb-log:server:CreateLog', 'playermoney', 'AddMoney', 'lightgreen', '**' .. GetPlayerName(self.PlayerData.source) .. ' (citizenid: ' .. self.PlayerData.citizenid .. ' | id: ' .. self.PlayerData.source .. ')** $' .. amount .. ' (' .. moneytype .. ') added, new ' .. moneytype .. ' balance: ' .. self.PlayerData.money[moneytype] .. ' reason: ' .. reason, true)
-            else
-                TriggerEvent('qb-log:server:CreateLog', 'playermoney', 'AddMoney', 'lightgreen', '**' .. GetPlayerName(self.PlayerData.source) .. ' (citizenid: ' .. self.PlayerData.citizenid .. ' | id: ' .. self.PlayerData.source .. ')** $' .. amount .. ' (' .. moneytype .. ') added, new ' .. moneytype .. ' balance: ' .. self.PlayerData.money[moneytype] .. ' reason: ' .. reason)
-            end
-            TriggerClientEvent('hud:client:OnMoneyChange', self.PlayerData.source, moneytype, amount, false)
+            isbanklocked(self.PlayerData.citizenid, function(result)--modified
+                if (result == "true") then
+                    return false
+                else
+                    self.Functions.UpdatePlayerData()
+                    if amount > 100000 then
+                        TriggerEvent('qb-log:server:CreateLog', 'playermoney', 'AddMoney', 'lightgreen', '**' .. GetPlayerName(self.PlayerData.source) .. ' (citizenid: ' .. self.PlayerData.citizenid .. ' | id: ' .. self.PlayerData.source .. ')** $' .. amount .. ' (' .. moneytype .. ') added, new ' .. moneytype .. ' balance: ' .. self.PlayerData.money[moneytype] .. ' reason: ' .. reason, true)
+                    else
+                        TriggerEvent('qb-log:server:CreateLog', 'playermoney', 'AddMoney', 'lightgreen', '**' .. GetPlayerName(self.PlayerData.source) .. ' (citizenid: ' .. self.PlayerData.citizenid .. ' | id: ' .. self.PlayerData.source .. ')** $' .. amount .. ' (' .. moneytype .. ') added, new ' .. moneytype .. ' balance: ' .. self.PlayerData.money[moneytype] .. ' reason: ' .. reason)
+                    end
+                    TriggerClientEvent('hud:client:OnMoneyChange', self.PlayerData.source, moneytype, amount, false)
+                end
+            end)--modified
         end
 
         return true
@@ -310,16 +342,22 @@ function QBCore.Player.CreatePlayer(PlayerData, Offline)
         self.PlayerData.money[moneytype] = self.PlayerData.money[moneytype] - amount
 
         if not self.Offline then
-            self.Functions.UpdatePlayerData()
-            if amount > 100000 then
-                TriggerEvent('qb-log:server:CreateLog', 'playermoney', 'RemoveMoney', 'red', '**' .. GetPlayerName(self.PlayerData.source) .. ' (citizenid: ' .. self.PlayerData.citizenid .. ' | id: ' .. self.PlayerData.source .. ')** $' .. amount .. ' (' .. moneytype .. ') removed, new ' .. moneytype .. ' balance: ' .. self.PlayerData.money[moneytype] .. ' reason: ' .. reason, true)
-            else
-                TriggerEvent('qb-log:server:CreateLog', 'playermoney', 'RemoveMoney', 'red', '**' .. GetPlayerName(self.PlayerData.source) .. ' (citizenid: ' .. self.PlayerData.citizenid .. ' | id: ' .. self.PlayerData.source .. ')** $' .. amount .. ' (' .. moneytype .. ') removed, new ' .. moneytype .. ' balance: ' .. self.PlayerData.money[moneytype] .. ' reason: ' .. reason)
-            end
-            TriggerClientEvent('hud:client:OnMoneyChange', self.PlayerData.source, moneytype, amount, true)
-            if moneytype == 'bank' then
-                TriggerClientEvent('qb-phone:client:RemoveBankMoney', self.PlayerData.source, amount)
-            end
+            isbanklocked(self.PlayerData.citizenid, function(result)--modified
+                if (result == "true") then
+                    return false
+                else
+                    self.Functions.UpdatePlayerData()
+                    if amount > 100000 then
+                        TriggerEvent('qb-log:server:CreateLog', 'playermoney', 'RemoveMoney', 'red', '**' .. GetPlayerName(self.PlayerData.source) .. ' (citizenid: ' .. self.PlayerData.citizenid .. ' | id: ' .. self.PlayerData.source .. ')** $' .. amount .. ' (' .. moneytype .. ') removed, new ' .. moneytype .. ' balance: ' .. self.PlayerData.money[moneytype] .. ' reason: ' .. reason, true)
+                    else
+                        TriggerEvent('qb-log:server:CreateLog', 'playermoney', 'RemoveMoney', 'red', '**' .. GetPlayerName(self.PlayerData.source) .. ' (citizenid: ' .. self.PlayerData.citizenid .. ' | id: ' .. self.PlayerData.source .. ')** $' .. amount .. ' (' .. moneytype .. ') removed, new ' .. moneytype .. ' balance: ' .. self.PlayerData.money[moneytype] .. ' reason: ' .. reason)
+                    end
+                    TriggerClientEvent('hud:client:OnMoneyChange', self.PlayerData.source, moneytype, amount, true)
+                    if moneytype == 'bank' then
+                        TriggerClientEvent('qb-phone:client:RemoveBankMoney', self.PlayerData.source, amount)
+                    end
+                end
+            end)--modified
         end
 
         return true
@@ -587,18 +625,7 @@ end
 -- Delete character
 
 local playertables = { -- Add tables as needed
-    { table = 'players' },
-    { table = 'apartments' },
-    { table = 'bank_accounts' },
-    { table = 'crypto_transactions' },
-    { table = 'phone_invoices' },
-    { table = 'phone_messages' },
-    { table = 'playerskins' },
-    { table = 'player_contacts' },
-    { table = 'player_houses' },
-    { table = 'player_mails' },
-    { table = 'player_outfits' },
-    { table = 'player_vehicles' }
+    { table = 'players' }
 }
 
 function QBCore.Player.DeleteCharacter(source, citizenid)

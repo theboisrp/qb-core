@@ -220,6 +220,8 @@ function PaycheckInterval()
                     end
                 end
             end
+            TriggerEvent('insure:perpaycheck', Player.PlayerData.source)--modified
+            TriggerEvent('bank:perpaycheck', Player.PlayerData.source)--modified
         end
     end
     SetTimeout(QBCore.Config.Money.PayCheckTimeOut * (60 * 1000), PaycheckInterval)
